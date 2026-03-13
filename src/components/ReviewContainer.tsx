@@ -11,13 +11,16 @@ import {
   MessageSquareWarning,
   ExternalLink,
   Keyboard,
+  RefreshCw,
 } from "lucide-react";
 
 interface ReviewContainerProps {
   review: NarrativeReview;
+  fromCache?: boolean;
+  onReanalyze?: () => void;
 }
 
-export function ReviewContainer({ review }: ReviewContainerProps) {
+export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContainerProps) {
   const prId = `${review.prInfo.owner}/${review.prInfo.repo}#${review.prInfo.number}`;
   const prUrl = `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
 
@@ -170,6 +173,15 @@ export function ReviewContainer({ review }: ReviewContainerProps) {
               <ExternalLink className="w-4 h-4" />
               View on GitHub
             </a>
+            {onReanalyze && (
+              <button
+                onClick={onReanalyze}
+                className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Re-analyze{fromCache ? " (cached)" : ""}
+              </button>
+            )}
             <button
               onClick={() => setShowShortcuts((s) => !s)}
               className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"

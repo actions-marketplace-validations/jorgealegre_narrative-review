@@ -1,10 +1,33 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { NarrativeReview } from "@/lib/types";
 import { ReviewContainer } from "@/components/ReviewContainer";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
+
+function cacheKey(url: string) {
+  return `narrative-review:analysis:${url}`;
+}
+
+function getCachedAnalysis(url: string): NarrativeReview | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(cacheKey(url));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setCachedAnalysis(url: string, review: NarrativeReview) {
+  try {
+    localStorage.setItem(cacheKey(url), JSON.stringify(review));
+  } catch {
+    // localStorage full -- silently fail
+  }
+}
 
 function ReviewContent() {
   const searchParams = useSearchParams();
@@ -13,13 +36,24 @@ function ReviewContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Preparing...");
+  const [fromCache, setFromCache] = useState(false);
 
-  useEffect(() => {
-    if (!prUrl) return;
+  const analyze = useCallback(
+    async (skipCache = false) => {
+      if (!prUrl) return;
 
-    async function analyze() {
+      if (!skipCache) {
+        const cached = getCachedAnalysis(prUrl);
+        if (cached) {
+          setReview(cached);
+          setFromCache(true);
+          return;
+        }
+      }
+
       setLoading(true);
       setError(null);
+      setFromCache(false);
 
       try {
         setStatus("Fetching PR diff and metadata...");
@@ -37,20 +71,33 @@ function ReviewContent() {
         setStatus("Building narrative...");
         const data: NarrativeReview = await res.json();
         setReview(data);
+        setCachedAnalysis(prUrl, data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setLoading(false);
       }
-    }
+    },
+    [prUrl]
+  );
 
+  useEffect(() => {
     analyze();
-  }, [prUrl]);
+  }, [analyze]);
+
+  const handleReanalyze = () => {
+    if (prUrl) {
+      localStorage.removeItem(cacheKey(prUrl));
+    }
+    analyze(true);
+  };
 
   if (!prUrl) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <p className="text-zinc-500">No PR URL provided. Go back and enter one.</p>
+        <p className="text-zinc-500">
+          No PR URL provided. Go back and enter one.
+        </p>
       </div>
     );
   }
@@ -80,12 +127,12 @@ function ReviewContent() {
             Analysis Failed
           </p>
           <p className="text-zinc-400 text-sm mb-4">{error}</p>
-          <a
-            href="/"
+          <button
+            onClick={handleReanalyze}
             className="text-indigo-400 hover:text-indigo-300 text-sm underline"
           >
             Try again
-          </a>
+          </button>
         </div>
       </div>
     );
@@ -93,7 +140,13 @@ function ReviewContent() {
 
   if (!review) return null;
 
-  return <ReviewContainer review={review} />;
+  return (
+    <ReviewContainer
+      review={review}
+      fromCache={fromCache}
+      onReanalyze={handleReanalyze}
+    />
+  );
 }
 
 export default function ReviewPage() {
