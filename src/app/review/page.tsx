@@ -4,16 +4,16 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { NarrativeReview } from "@/lib/types";
 import { ReviewContainer } from "@/components/ReviewContainer";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-function cacheKey(url: string) {
-  return `narrative-review:analysis:${url}`;
+function cacheKey(identifier: string) {
+  return `narrative-review:analysis:${identifier}`;
 }
 
-function getCachedAnalysis(url: string): NarrativeReview | null {
+function getCachedAnalysis(identifier: string): NarrativeReview | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(cacheKey(url));
+    const raw = localStorage.getItem(cacheKey(identifier));
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -21,31 +21,42 @@ function getCachedAnalysis(url: string): NarrativeReview | null {
   }
 }
 
-function setCachedAnalysis(url: string, review: NarrativeReview) {
+function setCachedAnalysis(identifier: string, review: NarrativeReview) {
   try {
-    localStorage.setItem(cacheKey(url), JSON.stringify(review));
+    localStorage.setItem(cacheKey(identifier), JSON.stringify(review));
   } catch {
-    // localStorage full -- silently fail
+    // localStorage full
   }
 }
 
 function ReviewContent() {
   const searchParams = useSearchParams();
+  const source = searchParams.get("source"); // "local" or null (PR)
   const prUrl = searchParams.get("pr");
+  const repoPath = searchParams.get("repo");
+  const baseBranch = searchParams.get("base") || "";
+  const headBranch = searchParams.get("head") || "";
+  const modelParam = searchParams.get("model") || undefined;
+
+  const isLocal = source === "local";
+
+  // Unique cache key per source
+  const identifier = isLocal
+    ? `local:${repoPath}:${baseBranch}:${headBranch}`
+    : prUrl || "";
+
   const [review, setReview] = useState<NarrativeReview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Preparing...");
   const [fromCache, setFromCache] = useState(false);
 
-  const modelParam = searchParams.get("model") || undefined;
-
   const analyze = useCallback(
     async (skipCache = false) => {
-      if (!prUrl) return;
+      if (!identifier) return;
 
       if (!skipCache) {
-        const cached = getCachedAnalysis(prUrl);
+        const cached = getCachedAnalysis(identifier);
         if (cached) {
           setReview(cached);
           setFromCache(true);
@@ -58,29 +69,53 @@ function ReviewContent() {
       setFromCache(false);
 
       try {
-        setStatus("Fetching PR diff and metadata...");
-        const res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: prUrl, model: modelParam }),
-        });
+        if (isLocal) {
+          setStatus("Running local git diff...");
+          const res = await fetch("/api/analyze-local", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              repoPath,
+              baseBranch: baseBranch || undefined,
+              headBranch: headBranch || undefined,
+              model: modelParam,
+            }),
+          });
 
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || `HTTP ${res.status}`);
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+
+          setStatus("Building narrative...");
+          const data: NarrativeReview = await res.json();
+          setReview(data);
+          setCachedAnalysis(identifier, data);
+        } else {
+          setStatus("Fetching PR diff and metadata...");
+          const res = await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: prUrl, model: modelParam }),
+          });
+
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+
+          setStatus("Building narrative...");
+          const data: NarrativeReview = await res.json();
+          setReview(data);
+          setCachedAnalysis(identifier, data);
         }
-
-        setStatus("Building narrative...");
-        const data: NarrativeReview = await res.json();
-        setReview(data);
-        setCachedAnalysis(prUrl, data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setLoading(false);
       }
     },
-    [prUrl]
+    [identifier, isLocal, repoPath, baseBranch, headBranch, modelParam, prUrl]
   );
 
   useEffect(() => {
@@ -88,17 +123,15 @@ function ReviewContent() {
   }, [analyze]);
 
   const handleReanalyze = () => {
-    if (prUrl) {
-      localStorage.removeItem(cacheKey(prUrl));
-    }
+    localStorage.removeItem(cacheKey(identifier));
     analyze(true);
   };
 
-  if (!prUrl) {
+  if (!prUrl && !isLocal) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <p className="text-zinc-500">
-          No PR URL provided. Go back and enter one.
+          No source provided. Go back and enter a PR URL or repo path.
         </p>
       </div>
     );
@@ -111,10 +144,12 @@ function ReviewContent() {
           <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-4" />
           <p className="text-zinc-300 text-lg font-medium">{status}</p>
           <p className="text-zinc-500 text-sm mt-2">
-            Analyzing changes and building your narrative review...
+            {isLocal
+              ? "Diffing your local branches and building the narrative..."
+              : "Analyzing changes and building your narrative review..."}
           </p>
           <p className="text-zinc-600 text-xs mt-4">
-            This may take 30-60 seconds for large PRs
+            This may take 30-60 seconds for large diffs
           </p>
         </div>
       </div>

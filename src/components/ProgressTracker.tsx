@@ -35,14 +35,20 @@ export function ProgressTracker({
       <div className="px-6 py-4">
         <div className="flex items-center justify-between mb-3">
           <div className="min-w-0 flex-1 mr-4">
-            <a
-              href={prUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-lg font-semibold text-zinc-100 hover:text-indigo-400 transition-colors truncate block"
-            >
-              {prTitle}
-            </a>
+            {prUrl ? (
+              <a
+                href={prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg font-semibold text-zinc-100 hover:text-indigo-400 transition-colors truncate block"
+              >
+                {prTitle}
+              </a>
+            ) : (
+              <span className="text-lg font-semibold text-zinc-100 truncate block">
+                {prTitle}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4 flex-shrink-0">
             {/* Cost / model indicator */}

@@ -30,8 +30,13 @@ interface ReviewContainerProps {
 }
 
 export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContainerProps) {
-  const prId = `${review.prInfo.owner}/${review.prInfo.repo}#${review.prInfo.number}`;
-  const prUrl = `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
+  const isLocal = review.prInfo.number === 0;
+  const prId = isLocal
+    ? `local:${review.prInfo.repo}:${review.prInfo.baseRef}:${review.prInfo.headRef}`
+    : `${review.prInfo.owner}/${review.prInfo.repo}#${review.prInfo.number}`;
+  const prUrl = isLocal
+    ? ""
+    : `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
 
   const { toggleChapter, isChapterReviewed, reviewedCount } =
     useReviewState(prId);
@@ -210,15 +215,17 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
 
           {/* Actions */}
           <div className="mt-6 pt-4 border-t border-zinc-800 space-y-2">
-            <a
-              href={prUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-            >
-              <ExternalLink className="w-4 h-4" />
-              View on GitHub
-            </a>
+            {!isLocal && (
+              <a
+                href={prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                View on GitHub
+              </a>
+            )}
             <button
               onClick={() => setWalkthroughMode(true)}
               className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
@@ -251,7 +258,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
             </button>
           </div>
 
-          {/* Approval */}
+          {/* Approval -- only for GitHub PRs */}
+          {!isLocal && (
           <div className="mt-4 pt-4 border-t border-zinc-800 space-y-2">
             {approvalState === "approved" ? (
               <div className="flex items-center gap-2 text-green-400 text-sm">
@@ -300,6 +308,19 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
               </p>
             )}
           </div>
+          )}
+
+          {/* Local branch info */}
+          {isLocal && (
+            <div className="mt-4 pt-4 border-t border-zinc-800">
+              <p className="text-xs text-zinc-600">
+                Local review &middot;{" "}
+                <span className="text-zinc-400">{review.prInfo.headRef}</span>
+                {" "}vs{" "}
+                <span className="text-zinc-400">{review.prInfo.baseRef}</span>
+              </p>
+            </div>
+          )}
         </aside>
 
         {/* Main content */}
@@ -369,8 +390,8 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 isActive={chapter.id === activeChapterId}
                 onToggleReview={() => toggleChapter(chapter.id)}
                 onActivate={() => setActiveChapterId(chapter.id)}
-                prUrl={prUrl}
-                prInfo={review.prInfo}
+                prUrl={isLocal ? undefined : prUrl}
+                prInfo={isLocal ? undefined : review.prInfo}
                 diffSettings={diffSettings}
               />
             ))}
