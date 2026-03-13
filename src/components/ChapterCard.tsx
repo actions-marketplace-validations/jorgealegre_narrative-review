@@ -1,6 +1,6 @@
 "use client";
 
-import { Chapter } from "@/lib/types";
+import { Chapter, PRInfo } from "@/lib/types";
 import { DiffView } from "./DiffView";
 import {
   CheckCircle2,
@@ -20,6 +20,7 @@ interface ChapterCardProps {
   onToggleReview: () => void;
   onActivate: () => void;
   prUrl?: string;
+  prInfo?: PRInfo;
 }
 
 export function ChapterCard({
@@ -30,6 +31,7 @@ export function ChapterCard({
   onToggleReview,
   onActivate,
   prUrl,
+  prInfo,
 }: ChapterCardProps) {
   const [expanded, setExpanded] = useState(true);
   const isUncategorized = chapter.id === "uncategorized";
@@ -137,6 +139,7 @@ export function ChapterCard({
                     githubUrl={
                       prUrl ? `${prUrl}/files#diff-${encodeURIComponent(hunk.file)}` : undefined
                     }
+                    prInfo={prInfo}
                   />
                 ))}
               </div>

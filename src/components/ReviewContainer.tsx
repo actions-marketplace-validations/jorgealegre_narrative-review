@@ -312,6 +312,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 onToggleReview={() => toggleChapter(chapter.id)}
                 onActivate={() => setActiveChapterId(chapter.id)}
                 prUrl={prUrl}
+                prInfo={review.prInfo}
               />
             ))}
           </div>
