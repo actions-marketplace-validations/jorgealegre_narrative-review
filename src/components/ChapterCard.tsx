@@ -39,13 +39,14 @@ export function ChapterCard({
   return (
     <div
       id={`chapter-${chapter.id}`}
-      className={`rounded-xl border transition-all duration-200 ${
+      className={`rounded-xl border transition-all duration-200 animate-fade-in-up ${
         isActive
           ? "border-indigo-500/50 shadow-lg shadow-indigo-500/10"
           : "border-zinc-800"
       } ${isUncategorized ? "border-amber-500/30" : ""} ${
         isReviewed ? "opacity-75" : ""
       }`}
+      style={{ animationDelay: `${index * 60}ms` }}
       onClick={onActivate}
     >
       {/* Chapter header */}
@@ -156,9 +157,9 @@ export function ChapterCard({
             title={isReviewed ? "Mark as unreviewed" : "Mark as reviewed"}
           >
             {isReviewed ? (
-              <CheckCircle2 className="w-6 h-6 text-green-400" />
+              <CheckCircle2 className="w-6 h-6 text-green-400 animate-scale-check" />
             ) : (
-              <Circle className="w-6 h-6 text-zinc-600 hover:text-zinc-400" />
+              <Circle className="w-6 h-6 text-zinc-600 hover:text-zinc-400 transition-colors" />
             )}
           </button>
         </div>

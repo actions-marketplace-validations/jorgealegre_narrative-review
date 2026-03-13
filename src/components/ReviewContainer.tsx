@@ -41,8 +41,17 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [walkthroughMode, setWalkthroughMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const allReviewed =
     reviewedCount === review.chapters.length && review.chapters.length > 0;
+
+  useEffect(() => {
+    if (allReviewed) {
+      setShowCelebration(true);
+      const timer = setTimeout(() => setShowCelebration(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [allReviewed]);
 
   const scrollToChapter = useCallback((id: string) => {
     setActiveChapterId(id);
@@ -376,6 +385,21 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Celebration overlay */}
+      {showCelebration && (
+        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
+          <div className="animate-celebrate bg-zinc-900/90 border border-green-500/30 rounded-2xl px-8 py-6 text-center shadow-2xl shadow-green-500/10">
+            <div className="text-4xl mb-3">&#x2705;</div>
+            <h3 className="text-xl font-bold text-green-400 mb-1">
+              All chapters reviewed!
+            </h3>
+            <p className="text-sm text-zinc-400">
+              Ready to approve this PR
+            </p>
           </div>
         </div>
       )}
