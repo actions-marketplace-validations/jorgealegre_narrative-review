@@ -116,7 +116,7 @@ Analyze this diff and return the narrative JSON.`;
 
   const startTime = Date.now();
 
-  const response = await client.messages.create({
+  const stream = client.messages.stream({
     model,
     max_tokens: 16000,
     system: [
@@ -128,6 +128,8 @@ Analyze this diff and return the narrative JSON.`;
     ],
     messages: [{ role: "user", content: userPrompt }],
   });
+
+  const response = await stream.finalMessage();
 
   const durationMs = Date.now() - startTime;
 
