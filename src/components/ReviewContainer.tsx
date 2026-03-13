@@ -51,6 +51,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [walkthroughMode, setWalkthroughMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatInitialQuestion, setChatInitialQuestion] = useState<string | undefined>();
   const [showCelebration, setShowCelebration] = useState(false);
   const [diffSettings, setDiffSettings] = useState<DiffSettings>({
     hideWhitespace: false,
@@ -121,6 +122,11 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [activeIndex, activeChapterId, review.chapters, scrollToChapter, toggleChapter, isChapterReviewed]);
+
+  const handleAskAbout = useCallback((question: string) => {
+    setChatInitialQuestion(question);
+    setChatOpen(true);
+  }, []);
 
   const handleApprove = async () => {
     setApprovalState("loading");
@@ -393,6 +399,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 prUrl={isLocal ? undefined : prUrl}
                 prInfo={isLocal ? undefined : review.prInfo}
                 diffSettings={diffSettings}
+                onAskAbout={handleAskAbout}
               />
             ))}
           </div>
@@ -415,7 +422,11 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
       <ChatPanel
         review={review}
         isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
+        onClose={() => {
+          setChatOpen(false);
+          setChatInitialQuestion(undefined);
+        }}
+        initialQuestion={chatInitialQuestion}
       />
 
       {/* Walkthrough mode overlay */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink, MessageSquare, Send, Loader2 } from "lucide-react";
+import { ExternalLink, MessageSquare, MessageCircle, Send, Loader2 } from "lucide-react";
 import { DiffSettings } from "@/lib/types";
 
 interface DiffViewProps {
@@ -11,6 +11,7 @@ interface DiffViewProps {
   githubUrl?: string;
   prInfo?: { owner: string; repo: string; number: number };
   settings?: DiffSettings;
+  onAskAbout?: (question: string) => void;
 }
 
 function classifyLine(line: string): "add" | "remove" | "context" | "header" {
@@ -445,6 +446,7 @@ export function DiffView({
   githubUrl,
   prInfo,
   settings = DEFAULT_SETTINGS,
+  onAskAbout,
 }: DiffViewProps) {
   const [commentLine, setCommentLine] = useState<number | null>(null);
   const [commentLoading, setCommentLoading] = useState(false);
@@ -495,6 +497,20 @@ export function DiffView({
       <div className="flex items-center justify-between bg-zinc-900 px-4 py-2 border-b border-zinc-800">
         <span className="text-sm font-mono text-zinc-300">{fileName}</span>
         <div className="flex items-center gap-2">
+          {onAskAbout && (
+            <button
+              onClick={() => {
+                const snippet = diffContent.split("\n").slice(0, 30).join("\n");
+                onAskAbout(
+                  `Explain this code change in ${fileName}:\n\n\`\`\`\n${snippet}\n\`\`\`\n${annotation ? `\nThe annotation says: "${annotation}"` : ""}\n\nWhat exactly is happening here and why?`
+                );
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-indigo-400"
+              title="Ask about this code"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
           {githubUrl && (
             <a
               href={githubUrl}

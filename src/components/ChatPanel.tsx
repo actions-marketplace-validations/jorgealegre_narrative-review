@@ -13,6 +13,7 @@ interface ChatPanelProps {
   review: NarrativeReview;
   isOpen: boolean;
   onClose: () => void;
+  initialQuestion?: string;
 }
 
 function buildPRContext(review: NarrativeReview): string {
@@ -32,13 +33,14 @@ Files changed: ${review.prInfo.changedFiles} (+${review.prInfo.additions}/-${rev
 ${chapterSummaries}`;
 }
 
-export function ChatPanel({ review, isOpen, onClose }: ChatPanelProps) {
+export function ChatPanel({ review, isOpen, onClose, initialQuestion }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const prContext = useRef(buildPRContext(review));
+  const lastInitialQuestion = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -53,11 +55,12 @@ export function ChatPanel({ review, isOpen, onClose }: ChatPanelProps) {
   }, [messages]);
 
   const handleSend = useCallback(
-    async (e?: FormEvent) => {
+    async (e?: FormEvent, explicitText?: string) => {
       e?.preventDefault();
-      if (!input.trim() || streaming) return;
+      const text = explicitText ?? input;
+      if (!text.trim() || streaming) return;
 
-      const userMessage: ChatMessage = { role: "user", content: input.trim() };
+      const userMessage: ChatMessage = { role: "user", content: text.trim() };
       const newMessages = [...messages, userMessage];
       setMessages(newMessages);
       setInput("");
@@ -126,6 +129,14 @@ export function ChatPanel({ review, isOpen, onClose }: ChatPanelProps) {
     },
     [input, messages, streaming]
   );
+
+  // Auto-send when opened with a contextual question
+  useEffect(() => {
+    if (isOpen && initialQuestion && initialQuestion !== lastInitialQuestion.current && !streaming) {
+      lastInitialQuestion.current = initialQuestion;
+      handleSend(undefined, initialQuestion);
+    }
+  }, [isOpen, initialQuestion, streaming, handleSend]);
 
   if (!isOpen) return null;
 

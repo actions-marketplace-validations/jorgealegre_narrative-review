@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
   Shield,
+  MessageCircle,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -22,6 +23,7 @@ interface ChapterCardProps {
   prUrl?: string;
   prInfo?: PRInfo;
   diffSettings?: DiffSettings;
+  onAskAbout?: (question: string) => void;
 }
 
 export function ChapterCard({
@@ -34,6 +36,7 @@ export function ChapterCard({
   prUrl,
   prInfo,
   diffSettings,
+  onAskAbout,
 }: ChapterCardProps) {
   const [expanded, setExpanded] = useState(true);
   const isUncategorized = chapter.id === "uncategorized";
@@ -85,9 +88,25 @@ export function ChapterCard({
             )}
 
             {/* Narrative */}
-            <p className="text-sm text-zinc-300 leading-relaxed mb-4">
-              {chapter.narrative}
-            </p>
+            <div className="group/narrative mb-4">
+              <p className="text-sm text-zinc-300 leading-relaxed">
+                {chapter.narrative}
+              </p>
+              {onAskAbout && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAskAbout(
+                      `Regarding chapter "${chapter.title}": ${chapter.narrative}\n\nCan you expand on this explanation? What exactly is happening here and why?`
+                    );
+                  }}
+                  className="mt-2 flex items-center gap-1.5 text-xs text-zinc-600 hover:text-indigo-400 transition-colors opacity-0 group-hover/narrative:opacity-100"
+                >
+                  <MessageCircle className="w-3 h-3" />
+                  Ask about this
+                </button>
+              )}
+            </div>
 
             {/* Safety notes */}
             {chapter.safetyNotes && chapter.safetyNotes.length > 0 && (
@@ -144,6 +163,7 @@ export function ChapterCard({
                     }
                     prInfo={prInfo}
                     settings={diffSettings}
+                    onAskAbout={onAskAbout}
                   />
                 ))}
               </div>
