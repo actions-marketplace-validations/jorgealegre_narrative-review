@@ -85,6 +85,13 @@ export interface NarrativeReview {
   analyzedAt: string;
 }
 
+export type DiffViewMode = "unified" | "compact" | "split";
+
+export interface DiffSettings {
+  hideWhitespace: boolean;
+  viewMode: DiffViewMode;
+}
+
 export interface ReviewState {
   prId: string;
   reviewedChapters: Record<string, boolean>;

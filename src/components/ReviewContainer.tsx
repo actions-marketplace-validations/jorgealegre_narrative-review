@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import { NarrativeReview } from "@/lib/types";
+import { NarrativeReview, DiffSettings, DiffViewMode } from "@/lib/types";
 import { useReviewState } from "@/hooks/useReviewState";
 import { ChapterCard } from "./ChapterCard";
 import { ChapterTimeline } from "./ChapterTimeline";
@@ -16,6 +16,11 @@ import {
   RefreshCw,
   Play,
   MessageCircle,
+  EyeOff,
+  Eye,
+  Rows3,
+  Columns2,
+  AlignJustify,
 } from "lucide-react";
 
 interface ReviewContainerProps {
@@ -42,6 +47,10 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
   const [walkthroughMode, setWalkthroughMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [diffSettings, setDiffSettings] = useState<DiffSettings>({
+    hideWhitespace: false,
+    viewMode: "unified",
+  });
   const allReviewed =
     reviewedCount === review.chapters.length && review.chapters.length > 0;
 
@@ -309,6 +318,46 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
             <p className="text-sm text-zinc-400 ml-5">{review.summary}</p>
           </div>
 
+          {/* Diff settings toolbar */}
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+              {([
+                { mode: "unified" as DiffViewMode, icon: AlignJustify, label: "Unified" },
+                { mode: "compact" as DiffViewMode, icon: Rows3, label: "Compact" },
+                { mode: "split" as DiffViewMode, icon: Columns2, label: "Split" },
+              ]).map(({ mode, icon: Icon, label }) => (
+                <button
+                  key={mode}
+                  onClick={() => setDiffSettings((s) => ({ ...s, viewMode: mode }))}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                    diffSettings.viewMode === mode
+                      ? "bg-zinc-800 text-zinc-200"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                  title={label}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setDiffSettings((s) => ({ ...s, hideWhitespace: !s.hideWhitespace }))}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
+                diffSettings.hideWhitespace
+                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+                  : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+              }`}
+            >
+              {diffSettings.hideWhitespace ? (
+                <EyeOff className="w-3.5 h-3.5" />
+              ) : (
+                <Eye className="w-3.5 h-3.5" />
+              )}
+              {diffSettings.hideWhitespace ? "Whitespace hidden" : "Hide whitespace"}
+            </button>
+          </div>
+
           {/* Chapters */}
           <div className="space-y-6">
             {review.chapters.map((chapter, i) => (
@@ -322,6 +371,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 onActivate={() => setActiveChapterId(chapter.id)}
                 prUrl={prUrl}
                 prInfo={review.prInfo}
+                diffSettings={diffSettings}
               />
             ))}
           </div>
