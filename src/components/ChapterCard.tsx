@@ -10,8 +10,9 @@ import {
   ChevronRight,
   Shield,
   MessageCircle,
+  StickyNote,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFancyMode } from "@/hooks/useFancyMode";
 
 interface ChapterCardProps {
@@ -25,6 +26,9 @@ interface ChapterCardProps {
   prInfo?: PRInfo;
   diffSettings?: DiffSettings;
   onAskAbout?: (question: string) => void;
+  note?: string;
+  onNoteChange?: (note: string) => void;
+  defaultExpanded?: boolean;
 }
 
 export function ChapterCard({
@@ -38,9 +42,17 @@ export function ChapterCard({
   prInfo,
   diffSettings,
   onAskAbout,
+  note,
+  onNoteChange,
+  defaultExpanded = true,
 }: ChapterCardProps) {
   const { fancy } = useFancyMode();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [noteOpen, setNoteOpen] = useState(!!note);
+
+  useEffect(() => {
+    setExpanded(defaultExpanded);
+  }, [defaultExpanded]);
   const isUncategorized = chapter.id === "uncategorized";
 
   return (
@@ -141,21 +153,50 @@ export function ChapterCard({
               </div>
             )}
 
-            {/* Diff toggle */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpanded(!expanded);
-              }}
-              className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors mb-3"
-            >
-              {expanded ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
+            {/* Action row */}
+            <div className="flex items-center gap-4 mb-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded(!expanded);
+                }}
+                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                {expanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+                {expanded ? "Hide" : "Show"} code changes
+              </button>
+              {onNoteChange && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNoteOpen(!noteOpen);
+                  }}
+                  className={`flex items-center gap-1.5 text-sm transition-colors ${
+                    note ? "text-amber-400 hover:text-amber-300" : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  <StickyNote className="w-3.5 h-3.5" />
+                  {note ? "Edit note" : "Add note"}
+                </button>
               )}
-              {expanded ? "Hide" : "Show"} code changes
-            </button>
+            </div>
+
+            {/* Chapter note */}
+            {noteOpen && onNoteChange && (
+              <div className="mb-3" onClick={(e) => e.stopPropagation()}>
+                <textarea
+                  value={note || ""}
+                  onChange={(e) => onNoteChange(e.target.value)}
+                  placeholder="Your notes on this chapter..."
+                  className="w-full bg-zinc-900/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-amber-500/40 resize-none"
+                  rows={2}
+                />
+              </div>
+            )}
 
             {/* Diff hunks */}
             {expanded && (

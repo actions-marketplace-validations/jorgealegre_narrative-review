@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { CoverageResult, AnalysisMetrics } from "@/lib/types";
-import { ShieldCheck, AlertTriangle, Coins } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Coins, BookOpen } from "lucide-react";
 import { useFancyMode } from "@/hooks/useFancyMode";
 
 const MODEL_LABELS: Record<string, string> = {
@@ -40,18 +41,25 @@ export function ProgressTracker({
     }`}>
       <div className="px-6 py-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="min-w-0 flex-1 mr-4">
+          <div className="min-w-0 flex-1 mr-4 flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex-shrink-0 text-zinc-500 hover:text-indigo-400 transition-colors"
+              title="Back to home"
+            >
+              <BookOpen className="w-5 h-5" />
+            </Link>
             {prUrl ? (
               <a
                 href={prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-lg font-semibold text-zinc-100 hover:text-indigo-400 transition-colors truncate block"
+                className="text-lg font-semibold text-zinc-100 hover:text-indigo-400 transition-colors truncate"
               >
                 {prTitle}
               </a>
             ) : (
-              <span className="text-lg font-semibold text-zinc-100 truncate block">
+              <span className="text-lg font-semibold text-zinc-100 truncate">
                 {prTitle}
               </span>
             )}

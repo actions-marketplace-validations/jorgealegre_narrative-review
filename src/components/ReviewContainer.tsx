@@ -22,6 +22,9 @@ import {
   Rows3,
   Columns2,
   AlignJustify,
+  Download,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 
 interface ReviewContainerProps {
@@ -40,7 +43,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
     ? ""
     : `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
 
-  const { toggleChapter, isChapterReviewed, reviewedCount } =
+  const { toggleChapter, isChapterReviewed, reviewedCount, setNote, state: reviewState } =
     useReviewState(prId);
 
   const [activeChapterId, setActiveChapterId] = useState<string | null>(
@@ -59,6 +62,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
     hideWhitespace: false,
     viewMode: "unified",
   });
+  const [allExpanded, setAllExpanded] = useState(true);
   const allReviewed =
     reviewedCount === review.chapters.length && review.chapters.length > 0;
 
@@ -129,6 +133,39 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
     setChatInitialQuestion(question);
     setChatOpen(true);
   }, []);
+
+  const handleExportMarkdown = useCallback(() => {
+    const lines: string[] = [];
+    lines.push(`# ${review.title}\n`);
+    lines.push(`**Summary:** ${review.summary}\n`);
+    lines.push(`**Root cause:** ${review.rootCause}\n`);
+    if (!isLocal) lines.push(`**PR:** ${prUrl}\n`);
+    lines.push(`**Files changed:** ${review.prInfo.changedFiles} (+${review.prInfo.additions}/-${review.prInfo.deletions})\n`);
+    lines.push(`---\n`);
+
+    review.chapters.forEach((ch, i) => {
+      lines.push(`## ${i + 1}. ${ch.title}\n`);
+      if (ch.connectionToPrevious) lines.push(`> ${ch.connectionToPrevious}\n`);
+      lines.push(`${ch.narrative}\n`);
+      if (ch.safetyNotes?.length) {
+        ch.safetyNotes.forEach((n) => lines.push(`- ⚠️ ${n}`));
+        lines.push("");
+      }
+      const chapterNote = reviewState.notes[ch.id];
+      if (chapterNote) {
+        lines.push(`**My notes:** ${chapterNote}\n`);
+      }
+      lines.push(`**Files:** ${[...new Set(ch.hunks.map((h) => h.file))].join(", ")}\n`);
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `narrative-review-${review.prInfo.repo}-${review.prInfo.number || "local"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [review, prUrl, isLocal, reviewState.notes]);
 
   const handleApprove = async () => {
     setApprovalState("loading");
@@ -271,6 +308,13 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
               <Keyboard className="w-4 h-4" />
               Keyboard shortcuts
             </button>
+            <button
+              onClick={handleExportMarkdown}
+              className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export as Markdown
+            </button>
           </div>
 
           {/* Approval -- only for GitHub PRs */}
@@ -381,21 +425,34 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setDiffSettings((s) => ({ ...s, hideWhitespace: !s.hideWhitespace }))}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
-                diffSettings.hideWhitespace
-                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              }`}
-            >
-              {diffSettings.hideWhitespace ? (
-                <EyeOff className="w-3.5 h-3.5" />
-              ) : (
-                <Eye className="w-3.5 h-3.5" />
-              )}
-              {diffSettings.hideWhitespace ? "Whitespace hidden" : "Hide whitespace"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAllExpanded((s) => !s)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-colors"
+              >
+                {allExpanded ? (
+                  <ChevronsDownUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronsUpDown className="w-3.5 h-3.5" />
+                )}
+                {allExpanded ? "Collapse all" : "Expand all"}
+              </button>
+              <button
+                onClick={() => setDiffSettings((s) => ({ ...s, hideWhitespace: !s.hideWhitespace }))}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
+                  diffSettings.hideWhitespace
+                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+                    : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                }`}
+              >
+                {diffSettings.hideWhitespace ? (
+                  <EyeOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
+                )}
+                {diffSettings.hideWhitespace ? "Whitespace hidden" : "Hide whitespace"}
+              </button>
+            </div>
           </div>
 
           {/* Chapters */}
@@ -413,6 +470,9 @@ export function ReviewContainer({ review, fromCache, onReanalyze }: ReviewContai
                 prInfo={isLocal ? undefined : review.prInfo}
                 diffSettings={diffSettings}
                 onAskAbout={handleAskAbout}
+                note={reviewState.notes[chapter.id] || ""}
+                onNoteChange={(n) => setNote(chapter.id, n)}
+                defaultExpanded={allExpanded}
               />
             ))}
           </div>

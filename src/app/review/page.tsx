@@ -5,7 +5,8 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { NarrativeReview } from "@/lib/types";
 import { ReviewContainer } from "@/components/ReviewContainer";
 import { useFancyMode } from "@/hooks/useFancyMode";
-import { Loader2 } from "lucide-react";
+import { addToHistory } from "@/lib/history";
+import { Loader2, Check, GitPullRequest, Brain, ShieldCheck } from "lucide-react";
 
 function cacheKey(identifier: string) {
   return `narrative-review:analysis:${identifier}`;
@@ -93,6 +94,16 @@ function ReviewContent() {
           const data: NarrativeReview = await res.json();
           setReview(data);
           setCachedAnalysis(identifier, data);
+          addToHistory({
+            id: identifier,
+            title: data.title,
+            source: "local",
+            label: `${data.prInfo.headRef} → ${data.prInfo.baseRef}`,
+            url: `/review?${new URLSearchParams({ source: "local", repo: repoPath!, base: baseBranch, head: headBranch, model: modelParam || "" }).toString()}`,
+            analyzedAt: data.analyzedAt,
+            chapters: data.chapters.length,
+            model: data.metrics?.model || modelParam || "",
+          });
         } else {
           setStatus("Fetching PR diff and metadata...");
           const res = await fetch("/api/analyze", {
@@ -110,6 +121,16 @@ function ReviewContent() {
           const data: NarrativeReview = await res.json();
           setReview(data);
           setCachedAnalysis(identifier, data);
+          addToHistory({
+            id: identifier,
+            title: data.title,
+            source: "pr",
+            label: `${data.prInfo.owner}/${data.prInfo.repo}#${data.prInfo.number}`,
+            url: `/review?pr=${encodeURIComponent(prUrl!)}&model=${encodeURIComponent(modelParam || "")}`,
+            analyzedAt: data.analyzedAt,
+            chapters: data.chapters.length,
+            model: data.metrics?.model || modelParam || "",
+          });
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -140,6 +161,26 @@ function ReviewContent() {
   }
 
   if (loading) {
+    const steps = isLocal
+      ? [
+          { label: "Running git diff", key: "diff" },
+          { label: "Sending to Claude", key: "send" },
+          { label: "Building narrative", key: "narrative" },
+        ]
+      : [
+          { label: "Fetching PR data", key: "fetch" },
+          { label: "Sending to Claude", key: "send" },
+          { label: "Building narrative", key: "narrative" },
+        ];
+
+    const activeStep = status.includes("narrative") || status.includes("Building")
+      ? 2
+      : status.includes("diff") || status.includes("Fetching") || status.includes("metadata")
+        ? 0
+        : 1;
+
+    const stepIcons = [GitPullRequest, Brain, ShieldCheck];
+
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center relative">
         {fancy && (
@@ -148,18 +189,58 @@ function ReviewContent() {
             <div className="fancy-grid" />
           </>
         )}
-        <div className="text-center relative z-10">
-          <Loader2 className={`w-8 h-8 animate-spin mx-auto mb-4 ${fancy ? "text-indigo-400" : "text-indigo-500"}`} />
-          <p className={`text-lg font-medium ${fancy ? "fancy-gradient-text" : "text-zinc-300"}`}>
-            {status}
-          </p>
-          <p className="text-zinc-500 text-sm mt-2">
-            {isLocal
-              ? "Diffing your local branches and building the narrative..."
-              : "Analyzing changes and building your narrative review..."}
-          </p>
-          <p className="text-zinc-600 text-xs mt-4">
-            This may take 30-60 seconds for large diffs
+        <div className="relative z-10 w-full max-w-sm px-6">
+          <Loader2 className={`w-10 h-10 animate-spin mx-auto mb-8 ${fancy ? "text-indigo-400" : "text-indigo-500"}`} />
+
+          <div className="space-y-3">
+            {steps.map((step, i) => {
+              const Icon = stepIcons[i];
+              const isActive = i === activeStep;
+              const isDone = i < activeStep;
+              return (
+                <div
+                  key={step.key}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${
+                    isActive
+                      ? fancy
+                        ? "fancy-glass fancy-border-glow"
+                        : "bg-zinc-900 border border-indigo-500/30"
+                      : isDone
+                        ? "bg-zinc-900/30 border border-zinc-800/50"
+                        : "bg-zinc-900/20 border border-zinc-800/30"
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isDone
+                      ? "bg-green-500/20"
+                      : isActive
+                        ? "bg-indigo-500/20"
+                        : "bg-zinc-800/50"
+                  }`}>
+                    {isDone ? (
+                      <Check className="w-3.5 h-3.5 text-green-400" />
+                    ) : isActive ? (
+                      <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5 text-zinc-600" />
+                    )}
+                  </div>
+                  <span className={`text-sm ${
+                    isDone
+                      ? "text-zinc-500"
+                      : isActive
+                        ? "text-zinc-200 font-medium"
+                        : "text-zinc-600"
+                  }`}>
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-zinc-600 text-xs mt-6 text-center">
+            This may take 30–60 seconds for large diffs
           </p>
         </div>
       </div>

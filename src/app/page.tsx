@@ -15,9 +15,13 @@ import {
   Scan,
   Layers,
   ShieldCheck,
+  Clock,
+  X,
+  Trash2,
 } from "lucide-react";
 import { ModelId } from "@/lib/types";
 import { useFancyMode } from "@/hooks/useFancyMode";
+import { getHistory, removeFromHistory, clearHistory, HistoryEntry } from "@/lib/history";
 
 type SourceMode = "pr" | "local";
 
@@ -63,7 +67,12 @@ export default function Home() {
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [model, setModel] = useState<ModelId>("claude-sonnet-4-20250514");
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    setHistory(getHistory());
+  }, []);
 
   const fetchBranches = useCallback(async (path: string) => {
     if (!path.trim()) return;
@@ -431,6 +440,67 @@ export default function Home() {
               </div>
             ))}
           </div>
+          {/* Recent reviews */}
+          {history.length > 0 && (
+            <div className="mt-16">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-zinc-600" />
+                  <h2 className="text-sm font-medium text-zinc-400">Recent reviews</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    clearHistory();
+                    setHistory([]);
+                  }}
+                  className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Clear
+                </button>
+              </div>
+              <div className="space-y-2">
+                {history.slice(0, 5).map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`group flex items-center gap-3 rounded-lg px-4 py-3 cursor-pointer transition-all ${
+                      fancy
+                        ? "bg-zinc-900/40 border border-zinc-800/40 hover:border-indigo-500/20 hover:bg-zinc-900/60"
+                        : "bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700"
+                    }`}
+                    onClick={() => router.push(entry.url)}
+                  >
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      entry.source === "pr" ? "bg-indigo-500/15" : "bg-emerald-500/15"
+                    }`}>
+                      {entry.source === "pr" ? (
+                        <GitPullRequest className="w-3.5 h-3.5 text-indigo-400" />
+                      ) : (
+                        <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-zinc-200 truncate">{entry.title}</p>
+                      <p className="text-xs text-zinc-600 truncate">
+                        {entry.label} &middot; {entry.chapters} chapters &middot; {new Date(entry.analyzedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFromHistory(entry.id);
+                        setHistory((h) => h.filter((x) => x.id !== entry.id));
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-zinc-600 hover:text-zinc-400 transition-all"
+                      title="Remove from history"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
