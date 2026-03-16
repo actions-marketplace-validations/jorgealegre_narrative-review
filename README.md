@@ -130,7 +130,7 @@ jobs:
           else
             LINK="[**Download the review**](https://github.com/${REPO}/actions/runs/${RUN_ID}) — Artifacts → \`narrative-review-${PR_NUM}\`"
           fi
-          gh pr comment "${PR_NUM}" --body "## Narrative Review
+          gh api "repos/${REPO}/issues/${PR_NUM}/comments" -f body="## Narrative Review
           **${CHAPTERS} chapters** — ${LINK}"
 ```
 
