@@ -3,6 +3,29 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { ExternalLink, MessageSquare, MessageCircle, Send, Loader2, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { DiffSettings, PRComment } from "@/lib/types";
+import hljs from "highlight.js/lib/common";
+import "highlight.js/styles/github-dark-dimmed.css";
+
+function getLanguage(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const map: Record<string, string> = {
+    ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript",
+    go: "go", py: "python", rb: "ruby", java: "java", cs: "csharp",
+    cpp: "cpp", c: "c", rs: "rust", swift: "swift", kt: "kotlin",
+    php: "php", sh: "bash", bash: "bash", yaml: "yaml", yml: "yaml",
+    json: "json", md: "markdown", sql: "sql", css: "css",
+    html: "xml", xml: "xml",
+  };
+  return map[ext] ?? "plaintext";
+}
+
+function highlightCode(code: string, language: string): string {
+  try {
+    return hljs.highlight(code, { language, ignoreIllegals: true }).value;
+  } catch {
+    return code;
+  }
+}
 
 const EXPAND_STEP = 20;
 
@@ -247,6 +270,7 @@ function UnifiedDiffLines({
   postedComments,
   handleComment,
   prComments,
+  language,
 }: {
   lines: string[];
   settings: DiffSettings;
@@ -258,6 +282,7 @@ function UnifiedDiffLines({
   postedComments: Set<number>;
   handleComment: (body: string) => Promise<void>;
   prComments?: PRComment[];
+  language: string;
 }) {
   const emptyWs: WsAnalysis = useMemo(() => ({
     hidden: new Set<number>(), demoted: new Set<number>(),
@@ -381,7 +406,12 @@ function UnifiedDiffLines({
           <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0">
             {nums.new ?? ""}
           </span>
-          <span className="select-none flex-shrink-0 w-4">{displayLine?.[0] ?? " "}</span><span className="flex-1">{displayLine?.slice(1) || " "}</span>
+          <span className="select-none flex-shrink-0 w-4">{displayLine?.[0] ?? " "}</span>
+          {type !== "header" ? (
+            <span className="flex-1" dangerouslySetInnerHTML={{ __html: highlightCode(displayLine?.slice(1) ?? "", language) || " " }} />
+          ) : (
+            <span className="flex-1">{displayLine?.slice(1) || " "}</span>
+          )}
           {canComment && (
             <span className="opacity-0 group-hover/line:opacity-100 transition-opacity ml-2 flex-shrink-0">
               {hasComment ? (
@@ -528,9 +558,11 @@ function buildSplitPairs(
 function SplitDiffView({
   lines,
   settings,
+  language,
 }: {
   lines: string[];
   settings: DiffSettings;
+  language: string;
 }) {
   const wsInfo = useMemo(
     () => settings.hideWhitespace
@@ -554,15 +586,13 @@ function SplitDiffView({
           }
           const hasOld = pair.oldLine !== null;
           const isRemove = hasOld && classifyLine(pair.oldLine!) === "remove";
+          const oldContent = hasOld ? (pair.oldLine!.slice(1)) : "";
+          const oldHighlighted = hasOld ? highlightCode(oldContent, language) : null;
           return (
             <div
               key={i}
-              className={`font-mono flex items-center min-h-[1.5rem] text-sm ${
-                isRemove
-                  ? "bg-red-950/40 text-red-300"
-                  : hasOld
-                  ? "text-zinc-400"
-                  : "bg-zinc-900/30"
+              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-zinc-300 ${
+                isRemove ? "bg-red-950/40" : hasOld ? "" : "bg-zinc-900/30"
               }`}
             >
               <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0 px-1">
@@ -570,7 +600,7 @@ function SplitDiffView({
               </span>
               <span className="select-none flex-shrink-0 w-4">{hasOld ? (pair.oldLine?.[0] ?? " ") : ""}</span>
               <span className="flex-1 truncate px-2">
-                {hasOld ? pair.oldLine?.slice(1) || " " : ""}
+                {hasOld ? (oldHighlighted ? <span dangerouslySetInnerHTML={{ __html: oldHighlighted }} /> : pair.oldLine?.slice(1) || " ") : ""}
               </span>
             </div>
           );
@@ -588,15 +618,13 @@ function SplitDiffView({
           }
           const hasNew = pair.newLine !== null;
           const isAdd = hasNew && classifyLine(pair.newLine!) === "add";
+          const newContent = hasNew ? (pair.newLine!.slice(1)) : "";
+          const newHighlighted = hasNew ? highlightCode(newContent, language) : null;
           return (
             <div
               key={i}
-              className={`font-mono flex items-center min-h-[1.5rem] text-sm ${
-                isAdd
-                  ? "bg-green-950/40 text-green-300"
-                  : hasNew
-                  ? "text-zinc-400"
-                  : "bg-zinc-900/30"
+              className={`font-mono flex items-center min-h-[1.5rem] text-sm text-zinc-300 ${
+                isAdd ? "bg-green-950/40" : hasNew ? "" : "bg-zinc-900/30"
               }`}
             >
               <span className="w-8 text-right mr-3 text-zinc-700 text-xs select-none flex-shrink-0 px-1">
@@ -604,7 +632,7 @@ function SplitDiffView({
               </span>
               <span className="select-none flex-shrink-0 w-4">{hasNew ? (pair.newLine?.[0] ?? " ") : ""}</span>
               <span className="flex-1 truncate px-2">
-                {hasNew ? pair.newLine?.slice(1) || " " : ""}
+                {hasNew ? (newHighlighted ? <span dangerouslySetInnerHTML={{ __html: newHighlighted }} /> : pair.newLine?.slice(1) || " ") : ""}
               </span>
             </div>
           );
@@ -717,6 +745,8 @@ export function DiffView({
   const [expandBelow, setExpandBelow] = useState(0);
   const [fileLines, setFileLines] = useState<string[] | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
+
+  const language = useMemo(() => getLanguage(fileName), [fileName]);
 
   const lines = useMemo(() => {
     return diffContent.split("\n").filter((l) => {
@@ -915,7 +945,7 @@ export function DiffView({
         )}
 
         {settings.viewMode === "split" ? (
-          <SplitDiffView lines={lines} settings={settings} />
+          <SplitDiffView lines={lines} settings={settings} language={language} />
         ) : (
           <pre className="text-sm leading-6">
             <UnifiedDiffLines
@@ -929,6 +959,7 @@ export function DiffView({
               postedComments={postedComments}
               handleComment={handleComment}
               prComments={comments}
+              language={language}
             />
           </pre>
         )}
