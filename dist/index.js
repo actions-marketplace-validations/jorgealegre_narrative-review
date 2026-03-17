@@ -30022,14 +30022,52 @@ async function deployToPages(octokit, owner, repo, prNumber, htmlContent) {
 /***/ }),
 
 /***/ 331:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.fetchPRMetadata = fetchPRMetadata;
 exports.fetchPRDiff = fetchPRDiff;
 exports.fetchPRComments = fetchPRComments;
+exports.fetchFileContents = fetchFileContents;
+exports.deletePreviousNarrativeComments = deletePreviousNarrativeComments;
+exports.postNarrativeComment = postNarrativeComment;
+const core = __importStar(__nccwpck_require__(7484));
+const COMMENT_MARKER = "<!-- narrative-review -->";
 async function fetchPRMetadata(octokit, owner, repo, number) {
     const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number: number });
     return {
@@ -30079,6 +30117,72 @@ async function fetchPRComments(octokit, owner, repo, number) {
         }
     }
     return comments;
+}
+async function fetchFileContents(octokit, owner, repo, ref, filePaths) {
+    const contents = {};
+    const batchSize = 5;
+    for (let i = 0; i < filePaths.length; i += batchSize) {
+        const batch = filePaths.slice(i, i + batchSize);
+        const results = await Promise.allSettled(batch.map(async (filePath) => {
+            const { data } = await octokit.rest.repos.getContent({
+                owner,
+                repo,
+                path: filePath,
+                ref,
+            });
+            if (!Array.isArray(data) && data.type === "file" && data.content) {
+                contents[filePath] = Buffer.from(data.content, "base64").toString("utf-8");
+            }
+        }));
+        for (const r of results) {
+            if (r.status === "rejected") {
+                // File may be deleted in this PR
+            }
+        }
+    }
+    return contents;
+}
+async function deletePreviousNarrativeComments(octokit, owner, repo, number) {
+    let deleted = 0;
+    const iterator = octokit.paginate.iterator(octokit.rest.issues.listComments, {
+        owner,
+        repo,
+        issue_number: number,
+        per_page: 100,
+    });
+    for await (const { data } of iterator) {
+        for (const comment of data) {
+            if (comment.body?.includes(COMMENT_MARKER)) {
+                try {
+                    await octokit.rest.issues.deleteComment({
+                        owner,
+                        repo,
+                        comment_id: comment.id,
+                    });
+                    deleted++;
+                }
+                catch (e) {
+                    core.warning(`Failed to delete comment ${comment.id}: ${e instanceof Error ? e.message : e}`);
+                }
+            }
+        }
+    }
+    return deleted;
+}
+async function postNarrativeComment(octokit, owner, repo, number, reviewUrl, chapterCount, fileCount) {
+    const body = `${COMMENT_MARKER}
+## 📖 Narrative Review
+
+AI-organized walkthrough of this PR's changes — ${chapterCount} chapters across ${fileCount} files.
+
+**[View Narrative Review →](${reviewUrl})**
+`;
+    await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: number,
+        body,
+    });
 }
 
 
@@ -30233,7 +30337,24 @@ async function run() {
             metrics: analysis.metrics,
             analyzedAt: new Date().toISOString(),
         };
-        const staticData = { review, comments: prComments };
+        // Fetch file contents for expand-context feature
+        const allFilePaths = [...new Set(chapters.flatMap((ch) => ch.hunks.map((h) => h.file)))];
+        const nonDeletedPaths = allFilePaths.filter((p) => {
+            const file = diff.files.find((f) => f.path === p);
+            return file?.status !== "removed";
+        });
+        let fileContents = {};
+        if (nonDeletedPaths.length > 0) {
+            try {
+                core.info(`Fetching file contents for ${nonDeletedPaths.length} files...`);
+                fileContents = await (0, github_api_1.fetchFileContents)(octokit, owner, repo, headSha, nonDeletedPaths);
+                core.info(`Fetched ${Object.keys(fileContents).length} file contents.`);
+            }
+            catch (e) {
+                core.warning(`Failed to fetch file contents (non-fatal): ${e instanceof Error ? e.message : e}`);
+            }
+        }
+        const staticData = { review, comments: prComments, fileContents };
         // Inject into HTML template
         const templatePath = path.join(__dirname, "template.html");
         const template = fs.readFileSync(templatePath, "utf-8");
@@ -30266,6 +30387,19 @@ async function run() {
         }
         catch (e) {
             core.warning(`Pages deploy failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+        }
+        // Post PR comment with review link (clean up previous ones first)
+        if (reviewUrl) {
+            try {
+                const deleted = await (0, github_api_1.deletePreviousNarrativeComments)(octokit, owner, repo, prNumber);
+                if (deleted > 0)
+                    core.info(`Deleted ${deleted} previous narrative review comment(s).`);
+                await (0, github_api_1.postNarrativeComment)(octokit, owner, repo, prNumber, reviewUrl, chapters.length, diff.files.length);
+                core.info("Posted narrative review comment on PR.");
+            }
+            catch (e) {
+                core.warning(`Failed to post PR comment (non-fatal): ${e instanceof Error ? e.message : e}`);
+            }
         }
         // Complete check run
         await (0, check_run_1.completeCheckRun)(octokit, owner, repo, checkRunId, {
@@ -30349,13 +30483,40 @@ Given a PR diff, you must:
 
 6. **Annotate safety** — for deletions, explain why they're safe (e.g., "This view's only call site was in the conditional branch removed in Chapter 2").
 
+## Ordering Principles (CRITICAL)
+
+Follow the "prerequisite knowledge" rule: a reviewer must understand WHY something is being removed before they see the removal. Think of it as building context layer by layer.
+
+### Dependency-First Rule
+When a component, view, class, or file is deleted entirely:
+1. FIRST show changes to its **consumers** (call sites being updated, imports being removed, usages being deleted)
+2. THEN show the deletion of the component itself
+
+The reviewer should already know that nothing references it before seeing it disappear.
+
+### Bottom-Up Ordering
+Start from the root cause (e.g., flag removal, API change), then work through the dependency chain outward:
+1. Root trigger (e.g., feature flag definition removed)
+2. Direct consumers of the trigger (e.g., conditionals that checked the flag)
+3. Things that become dead code because of step 2 (e.g., views, functions only used in those conditionals)
+4. Leaf deletions last (entire files removed, with nothing left referencing them)
+
+### Example
+If FeatureFlag X is removed and View Y was gated behind it:
+- Chapter 1: Remove flag X definition
+- Chapter 2: Simplify call sites that checked flag X (removing conditional branches)
+- Chapter 3: Remove View Y (now dead code — the branch that used it was removed in Chapter 2)
+
+NEVER show the deletion of View Y before showing the call site changes that made it dead code.
+
 ## Rules
 
 - Every hunk from the diff MUST appear in exactly one chapter. Reference hunks by file path and hunk index (0-based).
-- Chapters should be ordered so a reviewer never sees a deletion before understanding why it's being deleted.
+- Chapters MUST be ordered so a reviewer never sees a deletion before understanding why it's being deleted. When in doubt, show the usage/consumer changes first, then the definition deletion.
 - Keep narrative text concise but informative. Write like a knowledgeable colleague explaining the PR over coffee.
 - If a change is straightforward (e.g., fixing a typo, updating an import), it can be a brief chapter.
-- Group tightly related cross-file changes together rather than showing them separately.`;
+- Group tightly related cross-file changes together rather than showing them separately.
+- For each chapter's connectionToPrevious, explicitly reference what was established in earlier chapters that makes this change safe or necessary.`;
 const narrativeOutputSchema = {
     type: "object",
     properties: {
