@@ -114,24 +114,6 @@ jobs:
           path: _narrative-review-output/index.html
           retention-days: 90
           overwrite: true
-
-      - name: Comment on PR
-        if: success() && steps.narrative.outputs.skipped != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUM: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          CHAPTERS: ${{ steps.narrative.outputs.chapters }}
-          REVIEW_URL: ${{ steps.narrative.outputs.review-url }}
-        run: |
-          if [ -n "${REVIEW_URL}" ]; then
-            LINK="[**View Narrative Review**](${REVIEW_URL})"
-          else
-            LINK="[**Download the review**](https://github.com/${REPO}/actions/runs/${RUN_ID}) — Artifacts → \`narrative-review-${PR_NUM}\`"
-          fi
-          gh api "repos/${REPO}/issues/${PR_NUM}/comments" -f body="## Narrative Review
-          **${CHAPTERS} chapters** — ${LINK}"
 ```
 
 ### 2. Add the Anthropic API key

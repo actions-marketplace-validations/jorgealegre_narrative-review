@@ -179,15 +179,14 @@ async function run(): Promise<void> {
     }
 
     // Post PR comment with review link (clean up previous ones first)
-    if (reviewUrl) {
-      try {
-        const deleted = await deletePreviousNarrativeComments(octokit, owner, repo, prNumber);
-        if (deleted > 0) core.info(`Deleted ${deleted} previous narrative review comment(s).`);
-        await postNarrativeComment(octokit, owner, repo, prNumber, reviewUrl, chapters.length, diff.files.length);
-        core.info("Posted narrative review comment on PR.");
-      } catch (e) {
-        core.warning(`Failed to post PR comment (non-fatal): ${e instanceof Error ? e.message : e}`);
-      }
+    try {
+      const deleted = await deletePreviousNarrativeComments(octokit, owner, repo, prNumber);
+      if (deleted > 0) core.info(`Deleted ${deleted} previous narrative review comment(s).`);
+      const artifactUrl = `https://github.com/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+      await postNarrativeComment(octokit, owner, repo, prNumber, chapters.length, diff.files.length, reviewUrl || undefined, reviewUrl ? undefined : artifactUrl);
+      core.info("Posted narrative review comment on PR.");
+    } catch (e) {
+      core.warning(`Failed to post PR comment (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 
     // Complete check run
