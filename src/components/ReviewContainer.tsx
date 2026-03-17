@@ -433,7 +433,7 @@ export function ReviewContainer({ review, fromCache, onReanalyze, mode = "intera
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 px-6 py-8 max-w-5xl">
+        <main className="flex-1 min-w-0 px-6 py-8">
           {/* Overview / Chapter 0 */}
           <div
             id="review-overview"

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useFancyMode } from "@/hooks/useFancyMode";
+import ReactMarkdown from "react-markdown";
 
 interface ChapterCardProps {
   chapter: Chapter;
@@ -49,6 +50,24 @@ export function ChapterCard({
   fileContents,
 }: ChapterCardProps) {
   const { fancy } = useFancyMode();
+
+  const mdComponents = {
+    code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+      const isBlock = className?.startsWith("language-");
+      return isBlock ? (
+        <code className="block bg-zinc-900 text-zinc-200 rounded px-3 py-2 my-1.5 font-mono text-xs overflow-x-auto whitespace-pre">
+          {children}
+        </code>
+      ) : (
+        <code className="bg-zinc-900 text-indigo-300 rounded px-1 py-0.5 font-mono text-xs">
+          {children}
+        </code>
+      );
+    },
+    pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    p: ({ children }: { children?: React.ReactNode }) => <p className="mb-1 last:mb-0">{children}</p>,
+  };
+
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [noteOpen, setNoteOpen] = useState(!!note);
 
@@ -104,16 +123,20 @@ export function ChapterCard({
 
             {/* Connection to previous */}
             {chapter.connectionToPrevious && (
-              <p className="text-sm text-zinc-500 mb-3 pl-3 border-l-2 border-zinc-700">
-                {chapter.connectionToPrevious}
-              </p>
+              <div className="text-sm text-zinc-500 mb-3 pl-3 border-l-2 border-zinc-700">
+                <ReactMarkdown components={mdComponents}>
+                  {chapter.connectionToPrevious}
+                </ReactMarkdown>
+              </div>
             )}
 
             {/* Narrative */}
             <div className="group/narrative mb-4">
-              <p className="text-sm text-zinc-300 leading-relaxed">
-                {chapter.narrative}
-              </p>
+              <div className="text-sm text-zinc-300 leading-relaxed">
+                <ReactMarkdown components={mdComponents}>
+                  {chapter.narrative}
+                </ReactMarkdown>
+              </div>
               {onAskAbout && (
                 <button
                   onClick={(e) => {
@@ -148,7 +171,9 @@ export function ChapterCard({
                         isUncategorized ? "text-amber-300" : "text-green-300"
                       }
                     >
-                      {note}
+                      <ReactMarkdown components={{ ...mdComponents, p: ({ children }) => <span>{children}</span> }}>
+                        {note}
+                      </ReactMarkdown>
                     </span>
                   </div>
                 ))}
