@@ -35,4 +35,4 @@ outputs:
     description: "Number of chapters in the generated review"
 runs:
   using: "node20"
-  main: "dist/index.js"
+  main: "dist-action/index.js"
