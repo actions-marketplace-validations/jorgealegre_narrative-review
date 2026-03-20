@@ -236,6 +236,47 @@ The chat has full context of the PR analysis and can explain any part in detail.
 
 ---
 
+## Development
+
+### Prerequisites
+
+- **Node.js** 20+
+- **npm** (ships with Node)
+
+### Setup
+
+```bash
+git clone git@github.com:sp0n-7/narrative-review.git
+cd narrative-review
+npm install
+```
+
+### Build Pipelines
+
+The project has three build targets:
+
+| Command | Output | Purpose |
+|---------|--------|---------|
+| `npm run build` | `.next/` | Next.js web app (local dev) |
+| `npm run build:static` | `dist-static/index.html` | Self-contained HTML review page (Vite + singlefile) |
+| `npm run build:action` | `dist-action/index.js` + `template.html` | Bundled GitHub Action (ncc) |
+| `npm run build:all` | Both `dist-*` dirs | Runs `build:static` then `build:action` |
+
+### How Deployment Works
+
+The `dist-action/` and `dist-static/` directories are **committed to the repo**. Consumers reference the action via `uses: sp0n-7/narrative-review@main`, which runs `dist-action/index.js` directly. This means changes are live the moment they merge to `main`.
+
+### Making Changes
+
+1. Edit source files in `action/`, `static/`, or `src/`
+2. A **CI workflow** (`.github/workflows/build.yml`) automatically rebuilds `dist-action/` and `dist-static/` on every PR and commits the result back to your branch if anything changed
+3. Open a PR against `main` — the `build` status check must pass before merging
+4. Once merged, all repos using `@main` pick up the new version immediately
+
+You can also rebuild locally with `npm run build:all` if you want to inspect the output before pushing.
+
+---
+
 ## Architecture
 
 ```
