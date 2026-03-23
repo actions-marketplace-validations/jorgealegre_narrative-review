@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@/hooks/useTheme";
 import { FancyModeProvider } from "@/hooks/useFancyMode";
 import { FancyModeToggle } from "@/components/FancyModeToggle";
 import { ReviewContainer } from "@/components/ReviewContainer";
@@ -9,9 +10,11 @@ interface StaticReviewAppProps {
 
 export function StaticReviewApp({ data }: StaticReviewAppProps) {
   return (
-    <FancyModeProvider>
-      <ReviewContainer review={data.review} mode="static" fileContents={data.fileContents} />
-      <FancyModeToggle />
-    </FancyModeProvider>
+    <ThemeProvider>
+      <FancyModeProvider>
+        <ReviewContainer review={data.review} mode="static" fileContents={data.fileContents} />
+        <FancyModeToggle />
+      </FancyModeProvider>
+    </ThemeProvider>
   );
 }

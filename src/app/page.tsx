@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { ModelId } from "@/lib/types";
 import { useFancyMode } from "@/hooks/useFancyMode";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getHistory, removeFromHistory, clearHistory, HistoryEntry } from "@/lib/history";
 
 type SourceMode = "pr" | "local";
@@ -176,6 +177,10 @@ export default function Home() {
           <div className="fancy-scanline" />
         </>
       )}
+
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
 
       <main className="flex-1 flex items-center justify-center px-6 relative z-10">
         <div className="w-full max-w-xl">
