@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import { NarrativeReview, DiffSettings, DiffViewMode } from "@/lib/types";
+import { NarrativeReview, DiffSettings, DiffViewMode, PRComment } from "@/lib/types";
 import { useReviewState } from "@/hooks/useReviewState";
 import { useFancyMode } from "@/hooks/useFancyMode";
 import { ChapterCard } from "./ChapterCard";
 import { ChapterTimeline } from "./ChapterTimeline";
 import { ProgressTracker } from "./ProgressTracker";
 import { WalkthroughMode } from "./WalkthroughMode";
+import { InlineMarkdown } from "./InlineMarkdown";
 import {
   ExternalLink,
   Keyboard,
@@ -26,10 +27,11 @@ import {
 
 interface ReviewContainerProps {
   review: NarrativeReview;
+  comments?: PRComment[];
   fileContents?: Record<string, string>;
 }
 
-export function ReviewContainer({ review, fileContents }: ReviewContainerProps) {
+export function ReviewContainer({ review, comments, fileContents }: ReviewContainerProps) {
   const { fancy } = useFancyMode();
   const prId = `${review.prInfo.owner}/${review.prInfo.repo}#${review.prInfo.number}`;
   const prUrl = `https://github.com/${review.prInfo.owner}/${review.prInfo.repo}/pull/${review.prInfo.number}`;
@@ -105,6 +107,12 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
         case "?": {
           e.preventDefault();
           setShowShortcuts((s) => !s);
+          break;
+        }
+        case "w":
+        case "Enter": {
+          e.preventDefault();
+          setWalkthroughMode(true);
           break;
         }
       }
@@ -213,10 +221,12 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
             <div className="px-3 pb-3 flex-shrink-0 space-y-1.5">
               <button
                 onClick={() => setWalkthroughMode(true)}
+                title="Start guided walkthrough (w)"
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-accent-muted border border-accent/20 text-accent-text hover:bg-accent/20 hover:border-accent/30 transition-colors"
               >
                 <Play className="w-4 h-4" />
-                Guided Walkthrough
+                <span className="flex-1 text-left">Guided Walkthrough</span>
+                <kbd className="text-[10px] font-mono bg-bg-primary/40 border border-bd-primary/50 rounded px-1.5 py-0.5 text-t-tertiary">w</kbd>
               </button>
               <a
                 href={prUrl}
@@ -276,14 +286,18 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
                 : "bg-bg-secondary/50 border border-bd-primary"
             }`}
           >
-            <p className="text-lg text-t-primary leading-relaxed mb-4">{review.summary}</p>
+            <p className="text-lg text-t-primary leading-relaxed mb-4">
+              <InlineMarkdown>{review.summary}</InlineMarkdown>
+            </p>
             <div className="flex items-start gap-3 mb-3">
               <div className="w-2 h-2 rounded-full bg-accent mt-2 flex-shrink-0" />
               <div>
                 <h2 className="text-sm font-semibold text-t-secondary uppercase tracking-wider mb-1">
                   Root Cause
                 </h2>
-                <p className="text-t-secondary text-sm">{review.rootCause}</p>
+                <p className="text-t-secondary text-sm">
+                  <InlineMarkdown>{review.rootCause}</InlineMarkdown>
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-4 mt-4 pt-3 border-t border-bd-subtle/50 text-xs text-t-tertiary">
@@ -359,6 +373,7 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
                 onActivate={() => setActiveChapterId(chapter.id)}
                 prUrl={prUrl}
                 diffSettings={diffSettings}
+                comments={comments}
                 note={reviewState.notes[chapter.id] || ""}
                 onNoteChange={(n) => setNote(chapter.id, n)}
                 defaultExpanded={allExpanded}
@@ -388,6 +403,7 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
           onToggleReview={toggleChapter}
           onExit={() => setWalkthroughMode(false)}
           startChapterId={activeChapterId || undefined}
+          comments={comments}
           fileContents={fileContents}
         />
       )}
@@ -404,6 +420,7 @@ export function ReviewContainer({ review, fileContents }: ReviewContainerProps) 
             <h3 className="text-lg font-semibold mb-4">Keyboard Shortcuts</h3>
             <div className="space-y-3 text-sm">
               {[
+                ["w", "Start guided walkthrough"],
                 ["j", "Next chapter"],
                 ["k", "Previous chapter"],
                 ["Space", "Toggle reviewed"],

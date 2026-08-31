@@ -3,6 +3,29 @@ import type { PRInfo, PRComment } from "../src/lib/types";
 
 type Octokit = ReturnType<typeof github.getOctokit>;
 
+/**
+ * Why we skipped the GitHub Pages deploy. Drives the explainer footnote in the
+ * PR description so reviewers know it isn't an error and how to enable it.
+ */
+export type PagesSkipReason =
+  | "private-public-pages"
+  | "private-pages-not-configured"
+  | "private-no-pages-read-permission"
+  | "private-probe-error";
+
+function skipReasonText(reason: PagesSkipReason): string {
+  switch (reason) {
+    case "private-public-pages":
+      return "this repo is private but its GitHub Pages site is publicly readable, so the review would leak the diff and file contents.";
+    case "private-pages-not-configured":
+      return "this repo is private and Pages isn't configured yet — we can't verify access control on the very first deploy.";
+    case "private-no-pages-read-permission":
+      return "this repo is private and the workflow lacks `pages: read` permission, so we can't verify access control. **Fix:** add `pages: read` under `permissions:` in the workflow file, or set the input below.";
+    case "private-probe-error":
+      return "this repo is private and the Pages config probe failed unexpectedly — we can't verify access control. Check the workflow run logs.";
+  }
+}
+
 export async function fetchPRMetadata(
   octokit: Octokit,
   owner: string,
@@ -121,27 +144,32 @@ export async function updatePRDescriptionWithNote(
   chapterCount: number,
   fileCount: number,
   reviewUrl?: string,
-  artifactUrl?: string
+  artifactUrl?: string,
+  skipReason?: PagesSkipReason
 ): Promise<void> {
-  let link: string;
-  if (reviewUrl) {
-    link = `**[View Narrative Review →](${reviewUrl})**`;
-  } else if (artifactUrl) {
-    link = `**[Download the review](${artifactUrl})** — check the Artifacts section`;
-  } else {
-    link = "Check the workflow run artifacts for the review HTML.";
-  }
-
   const shortSha = headSha.slice(0, 7);
   const actionRepo = process.env.GITHUB_ACTION_REPOSITORY || "jorgealegre/narrative-review";
   const actionUrl = `https://github.com/${actionRepo}`;
+
+  let link: string;
+  let footnote = "";
+  if (reviewUrl) {
+    link = `**[View Narrative Review →](${reviewUrl})**`;
+  } else if (artifactUrl) {
+    link = `**[Download the review](${artifactUrl})** — open the workflow run, scroll to the Artifacts section`;
+    if (skipReason) {
+      footnote = `\n>\n> <sub>ℹ️ Pages deploy skipped: ${skipReasonText(skipReason)} See [\`allow-public-pages-on-private-repo\`](${actionUrl}#input-allow-public-pages-on-private-repo) to opt in.</sub>`;
+    }
+  } else {
+    link = "Check the workflow run artifacts for the review HTML.";
+  }
 
   const noteBlock = `${DESCRIPTION_MARKER_START}
 
 ---
 
 > [!TIP]
-> 📖 **Narrative Review** — ${chapterCount} chapters across ${fileCount} files. ${link}
+> 📖 **Narrative Review** — ${chapterCount} chapters across ${fileCount} files. ${link}${footnote}
 >
 > <sup>Written by [Narrative Review](${actionUrl}) for commit \`${shortSha}\`. This will update automatically on new commits.</sup>
 
